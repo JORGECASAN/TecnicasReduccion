@@ -1,0 +1,277 @@
+---
+title: "Los coches del Jefe 3"
+author: "Jorge Casan VÃ¡zquez"
+date: "22 de Diciembre de 2018"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#**EXECUTIVE SUMMARY **
+
+El objetivo de este informe es realizar una compilación de todo el análsis cluster que habiamos efectuado en la parte 1 y 2,en donde en la primera tuvimos que realizar un análisis de componentes principales y determinar la pertenencia de cada coche en un grupo determinado, realizando para ello un análisis de componentes principales  en donde vimos que las variables estadísticamente significativas eran la potencia,el RPM, el peso, el consumo urbano y la velocidad.Por otro lado, en el segundo informe realizamos un tratamiento de los NA, los cuales debemos tratarlos, y para ello los reemplazamos por los valores medios de la marca de coche. 
+
+Con este informe realizaremos una matriz de distancias y determinanaremos el número de clusteres óptimo desde un punto de vista estadístico, los cuales y en virtud de nuestro análisis son 6 y desde un punto de vista de negocio,continuando con la realización aún más en detalle del K-means y el k-mediods, ambos similares pero con sus diferencias,las cuales las explicaremos a continuación. 
+
+Finalmente asignaremos el conjunto total de coches a 5 grupos diferentes, por razón de abaratamiento de los costes logísticos y de transporte.
+
+#**INTRODUCCIÓN**
+
+Con el análisis exploratorio de datos que realizamos en la parte 1 limpiamos y ordenamos las 125 observaciones de las 15 variables, las cuales a través de la matriz de correlaciones pudimos determinar cuáles eran las variables estadísticamente significativas. Una vez realizado este paso previo fundamental hemos procedido a escalar las variables puesto que estaban en diferentes unidades métricas, lo cual resulta imprescindible si queremos compararlas aunque perdamos varianza explicada.
+
+La decisión del uso de las variables anteriormente mencionadas viene dada desde un punto de vista de negocio puesto que nuestro objetivo principal es asignar el reparto de coches lo más eficientemente posible hacia los diferentes garajes distribuidos geográficamente por el territorio europeo y por tanto minimizar el coste de transporte y en general logístico lo máximo posible.
+
+
+```{r include = FALSE, echo=FALSE}
+library(memisc)
+library(haven)
+library(foreign)
+library(dplyr)
+library(factoextra)
+library(cluster)
+library(factoextra)
+require(clustertend)
+library("NbClust")
+library(FactoMineR)
+```
+
+#**MEDIDAS DE DISTANCIA, DENDOGRAMA**
+
+Para poder llevar a cabo el clustering tenemos que definir las similitudes que tienen los coches. Cuánto más se asemejen las observaciones más próximas estarán en cuanto a distancia y por tanto podrán peternecer a un mismo grupo, para ello obtenemos la matriz de distancias calculadas a través del método de Pearson, Manhattan y Minkowski.
+
+
+```{r include = FALSE, echo=FALSE}
+ruta <- 'C:/Users/jcasa/OneDrive/Cunef - MDS/TECNICAS AGRUPACION Y REDUCCIÓN DIMENSION/LOS COCHES DEL JEFE/COCHES DEL JEFE/tterreno.sav'
+
+coches <- read.spss(ruta, to.data.frame = T)
+coches <- data.frame(coches[,-1], row.names = make.names(coches[,1], unique = T))
+
+coches_sin_escalar = read.spss(ruta, to.data.frame = T)
+coches_sin_escalar <- data.frame(coches_sin_escalar[,-1], row.names = make.names(coches_sin_escalar[,1], unique = T))
+
+
+
+coches[116, 11] <- mean(coches[c(119, 120, 118, 121, 117), 11])
+coches[116, 11]
+coches[c(75:79), 11] <- mean(coches[c(63:74), 11])
+coches[19, 11] <- mean(coches[c(13:18, 19:22), 11])
+coches[c(105, 106), 12] <- 144
+coches[114, 12] <- 135
+
+
+coches_sin_escalar[116, 11] <- mean(coches_sin_escalar[c(119, 120, 118, 121, 117), 11])
+coches_sin_escalar[116, 11]
+coches_sin_escalar[c(75:79), 11] <- mean(coches_sin_escalar[c(63:74), 11])
+coches_sin_escalar[19, 11] <- mean(coches_sin_escalar[c(13:18, 19:22), 11])
+coches_sin_escalar[c(105, 106), 12] <- 144
+coches_sin_escalar[114, 12] <- 135
+
+coches_sin_escalar[c(7, 8), 3] <- mean(coches_sin_escalar[c(6, 9:12), 3])
+coches_sin_escalar[c(7, 8), 3]
+coches_sin_escalar[19, 4] <- mean(coches_sin_escalar[c(13:18, 20:22), 4])
+
+
+anyNA(coches_sin_escalar)
+
+perfomScaling <-  T
+if(perfomScaling){
+  for(i in names(coches)){
+    if(class(coches[,i ]) == 'integer' | class(coches[,i ]) == 'numeric'){
+      coches[,i ] = scale(coches[,i ])
+    }
+  }
+}
+
+#Creamos un nuevo dataframe, con las columnas buenas.
+columnasnum <- c('potencia','rpm','peso','consurb','velocida')
+cnum <- c('potencia','rpm','peso','consurb','velocida', 'cons120')
+cochesescalados <- subset(coches, select = columnasnum)
+cochesescalados2 <- subset(coches, select = cnum)
+
+coches_sub_sin_escalar = subset(coches_sin_escalar, select = columnasnum)
+sum(is.na(coches_sub_sin_escalar))
+
+coches_sub_sin_escalar[c(7, 8), 3] = 1850
+coches_sub_sin_escalar[19, 4] <- mean(coches_sub_sin_escalar[c(13:18, 20:22), 4])
+anyNA(coches_sub_sin_escalar)
+#Peso
+cochesescalados[c(7, 8), 3] <- mean(cochesescalados[c(6, 9:12), 3])
+cochesescalados[c(7, 8), 3]
+cochesescalados[19, 4] <- mean(cochesescalados[c(13:18, 20:22), 4])
+
+#Matriz de distancias
+#Obtenemos las distancias del anterior DF a través de Pearson
+qdist <- get_dist(cochesescalados, stand = T, method = 'pearson')
+qdist.manhattan <- get_dist(cochesescalados, stand = T, method = 'manhattan')
+qdist.mink <- get_dist(cochesescalados, stand = T, method = 'minkowski')
+```
+
+
+```{r fig.align = 'center', out.width = '50%', out.height = '50%'}
+##Realizamos la representación gráfica.
+fviz_dist(qdist, lab_size = 5)
+```
+
+A simple vista podemos ver que existen 4 posibles agregaciones, 3 bien definidas, arriba y debajo a la izquierda, con color azul y rojo, respectivamente y abajo a la derecha. También podríamos pensar que la parte de arriba a la derecha forma una posible agrupación de coches, pero genera dudas.
+
+De manera rápida e intuitiva podemos ver que las marcas de coches están todas más o menos agrupadas en el mismo conjunto, lo que nos lleva a pensar que las características son parecidas dentro de cada grupo.
+
+El gráfico nos impide ver con claridad el conjunto total de coches representados en el eje de abcisas y en el corrdenadas, por lo que seguiremos con nuestro análisis. 
+
+Representamos el conjunto de marcas de coches a través de un Dendograma a través del método de Ward. Podemos pensar que existen 5 agrupaciones, la resaltada en color verde es la que menos duda genera. Sin embargo, la agrupacion vista de izquierda a derecha es la que presenta mayor complejidad.
+```{r include = FALSE, echo=FALSE}
+d <- dist(cochesescalados, method = "euclidean") # distance matrix
+fit <- hclust(d, method="ward.D2")
+plot(fit)
+
+```
+
+
+```{r fig.align = 'center', out.width = '50%', out.height = '40%'}
+plot(fit, cex = 0.6, hang = -1, main="Dendrograma - hclust")
+rect.hclust(fit, k=5, border = 2:4)
+
+```
+
+#**K-MEANS CLUSTERING**
+
+El método del K-means agrupa las observaciones en un número de clusteres distintos, donde el número se tiene que determinar a priori. Desde el punto de vista estadístico, segun el criterio de optimalidad analizado en el parte 2, el número perfecto de clusteres era de 4. Sin embargo, según el punto de vista de asignación de coches por garaje pero sobre todo por abaratamiento de costes logísticos hemos decidido realizar 6 clusteres.
+
+```{r include = FALSE, echo=FALSE}
+#**K-Means Clustering**
+k2 <- kmeans(cochesescalados, centers = 2, nstart = 25)
+k3 <- kmeans(cochesescalados, centers = 3, nstart = 25)
+k4 <- kmeans(cochesescalados, centers = 4, nstart = 25)
+k5 <- kmeans(cochesescalados, centers = 5, nstart = 25)
+k6 <- kmeans(cochesescalados, centers = 6, nstart = 25)
+k7 <- kmeans(cochesescalados, centers = 7, nstart = 25)
+k8 <- kmeans(cochesescalados, centers = 8, nstart = 25)
+
+p1 <- fviz_cluster(k2, geom = 'point', data = cochesescalados) + ggtitle('K = 2')
+p2 <- fviz_cluster(k3, geom = 'point', data = cochesescalados) + ggtitle('K = 3')
+p3 <- fviz_cluster(k4, geom = 'point', data = cochesescalados) + ggtitle('K = 4')
+p4 <- fviz_cluster(k5, geom = 'point', data = cochesescalados) + ggtitle('K = 5')
+p5 <- fviz_cluster(k6, geom = 'point', data = cochesescalados) + ggtitle('K = 6')
+p6 <- fviz_cluster(k7, geom = 'point', data = cochesescalados) + ggtitle('K = 7')
+p7 <- fviz_cluster(k8, geom = 'point', data = cochesescalados) + ggtitle('K = 8')
+
+```
+
+```{r fig.align = 'center', out.width = '70%', out.height = '70%'}
+library(gridExtra)
+require(ggrepel)
+
+grid.arrange(p1, p2, p3, p4, p5, nrow = 2)
+```
+
+Para ver las características de cada grupo podemos ver las características de sus centroides para así hacernos una idea del grupo completo.0
+
+```{r fig.align = 'center', out.width = '50%', out.height = '30%'}
+caracteristicas_kmeans <- kmeans(cochesescalados, 6)
+caracteristicas_kmeans$centers
+```
+El grupo que tiene los coches más potentes lo conforma el cluster 3. Por RPM, la mayor representatividad la tendrá el cluster 3 y 6. Por variable peso la mayor será la del cluster 1 y la 3 la menor. Finalmente, consumo urbano y velocidad, la mayor representatividad la tendrán el 2 para ambos y la menos el cluster 3 y 4, respectivamente.
+
+
+#**K-MEDIODS CLUSTERING**
+
+A través del algoritmo PAM, muy similar al K-means, en cuanto a que ambos agrupan las observaciones en función del número de clusters, pero con el k-mediods, cada cluster está representado por una observación ( el mediode), mientras que con el K-means cada cluster está representado por su centroide.
+
+```{r include = FALSE, echo=FALSE}
+library(cluster)
+library(factoextra)
+
+set.seed(123)
+pam_clusters <- pam(x = cochesescalados, k = 6, metric = "manhattan")
+```
+```{r fig.align = 'center', out.width = '50%', out.height = '30%'}
+pam_clusters$medoids
+```
+
+Los mediodes están representados a través de un modelo de coche, en donde el conjunto de características están representadas en la tabla. Lo podemos ver gráficamente, en donde se espera que dentro de cada cluster estuviera cada uno de los mediodes, presentando características similares cada grupo.
+
+```{r include = FALSE, echo=FALSE}
+medoids <- prcomp(cochesescalados)$x
+
+# Se seleccionan únicamente las proyecciones de las observaciones que son medoids
+medoids <- medoids[rownames(pam_clusters$medoids), c("PC1", "PC2")]
+medoids <- as.data.frame(medoids)
+
+# Se emplean los mismos nombres que en el objeto ggplot
+colnames(medoids) <- c("x", "y")
+
+pam_clusters$medoids
+
+
+
+fviz_cluster(object = pam_clusters, data = cochesescalados, ellipse.type = "t",
+             repel = TRUE) +
+  theme_bw() 
+ 
+```
+
+```{r fig.align = 'center', out.width = '70%', out.height = '70%'}
+#Resalamos las observaciones que actúan como mediodes
+fviz_cluster(object = pam_clusters, data = cochesescalados, ellipse.type = "t",
+             repel = TRUE) +
+  geom_point(data = medoids, color = "firebrick", size = 2) +
+  labs(title = "Resultados clustering PAM") +
+  theme(legend.position = "none")
+
+```
+
+Representamos gráficamente la cantidad total de clusteres y nos quedan 6 conjuntos
+
+```{r fig.align = 'center', out.width = '50%', out.height = '60%'}
+coches.eclust = eclust(cochesescalados, FUNcluster = "pam", stand = TRUE,
+                       hc_metric = "euclidean", k = 6)
+```
+
+#**CONCLUSIONES**
+
+La decisión del número de clusters no ha sido tarea fácil. Por un lado, nuestro jefe nos pedía asignar a cada grupo un máximo de 10 coches, es decir, hasta un máximo de 10. Sin embargo, y siguiendo con criterios de orden estadístico vimos que lo mejor era realizar 4 clusteres pero lo más importante para nosotros es realizar la asignación de clusteres por criterio de negocio para abaratar los costes logísticos de cara a la distribución de los cohes en diferentes puntos geográficos, por lo que al final hemos decidio realizar 6 clusteres.
+
+Basándonos en la información media por marca de coches dentro de los 6 clusteres hemos decidido distribuirlos de la siguiente manera:
+
+- Grupo 1_ Estos coches se distribuirán a la zona de Niza, Mónaco y Córcega, ya que por razones de distancia abarataríamos los costes de distribución y trasporte marítimo para entregarlos a la zona de Córcega.
+
+- Grupo 2_ Este conjunto de coches se distribuirán a la zona de Suiza ya que el conjunto de coches agregados en este cluster son idóneos para clientes con un alto poder adquisitivo.
+
+- Grupo 3_ Estos coches irán a parar a la zona de París debido a que son los que menor consumo de gasolina producen y los clientes que tenemos en la zona están interesados por estos coches en particular.
+
+- Grupo 4_: Estos coches son los que mayor consumo presentan y en base a este criterio consideramos que por raones topográficas de La Rochelle con alto nivel de renta per capita, estos coches deberían ir a parar allí.
+
+- Grupo 5_ : Finalmente, estos coches irán a parar a la zona de Andorra por razones de abaratamiento y por criterio de cercanía.
+
+Enlace de GITHUB:
+
+<https://github.com/JORGECASAN/TecnicasClasificacion/blob/master/Practica2_regresion/PRACTICA2_JORGE_REGRESI%C3%93NLOG%C3%8DSTICA.pdf>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
