@@ -249,7 +249,14 @@ Basándonos en la información media por marca de coches dentro de los 6 cluster
 
 Enlace de GITHUB:
 
-<https://github.com/JORGECASAN/TecnicasClasificacion/blob/master/Practica2_regresion/PRACTICA2_JORGE_REGRESI%C3%93NLOG%C3%8DSTICA.pdf>
+Formato RMD:
+
+<https://github.com/JORGECASAN/TecnicasReduccion/blob/master/COCHES%20DEL%20JEFE/COCHES_JEFE_PARTE3_JORGE.Rmd>
+
+
+
+
+
 
 
 
