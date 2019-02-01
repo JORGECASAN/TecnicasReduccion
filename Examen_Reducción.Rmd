@@ -1,0 +1,499 @@
+---
+title: "Examen final Reducción"
+author: "Jorge Casan Vázquez"
+date: "30 de Enero de 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r, include=FALSE}
+library(dplyr) 
+require(cluster)
+require(fpc)
+require(factoextra)
+require(dplyr)
+library(dendextend)
+require(ggrepel)
+require(NbClust)
+library(memisc)
+library(haven)
+library(foreign)
+library(dplyr)
+library(factoextra)
+library(cluster)
+library(factoextra)
+require(clustertend)
+library("NbClust")
+library(FactoMineR)
+library(ggplot2)
+library(LPCM)
+```
+
+
+
+```{r, include=FALSE, echo=FALSE}
+##REalizamos la carga de datos
+datos <- read.csv('EGT2010_2017.csv')
+str(datos)
+#Realizamos el tratamiento de datos necesarios para el examen.
+datos_filtrados <- datos[, c(81:93, 3, 4, 6, 21, 72, 112, 110, 109, 80, 151, 146)]
+which(is.na(datos_filtrados))
+
+summary(datos_filtrados)
+
+datos_filtrados_noNA <- na.omit(datos_filtrados)
+summary(datos_filtrados_noNA)
+
+primer_df <- datos_filtrados_noNA %>% filter(datos_filtrados_noNA$AÑO <= 2014)
+segundo_df <- datos_filtrados_noNA %>% filter(datos_filtrados_noNA$AÑO > 2014)
+
+set.seed(1234)
+
+primer_150 <- primer_df[sample(nrow(primer_df), 150), ]
+segundo_150 <- segundo_df[sample(nrow(segundo_df), 150),]
+
+rm(datos)
+rm(datos_filtrados)
+rm(datos_filtrados_noNA)
+rm(primer_df)
+rm(segundo_df)
+
+## Vamos a proceder a realizar la limpieza del dataframe
+str(primer_150)
+
+## Vamos a crear otro DF para realizar los clusters ##
+primer_150_limpio <- primer_150[, c(-15, -16, -18, -21, -23)]
+segundo_150_limpio <- segundo_150[, c(-15, -16, -18, -21, -23)]
+str(primer_150_limpio)
+```
+
+PREGUNTA 1
+
+Presentamos un summary de todas las variables objeto de nuestro análisis para los dos dataframes 
+
+
+```{r}
+summary(primer_150_limpio)
+summary(segundo_150)
+```
+
+
+```{r, include=FALSE, echo=FALSE}
+
+
+#Reestructuracion de ingresos
+
+library("dummies")
+ingresos = dummy(segundo_150$INGRESOS)
+
+i1=ingresos[,1]*((12000+24000)/2)
+i2=ingresos[,2]*((24000 + 36000)/2)
+i3=ingresos[,3]*((36001 +48000)/2)
+i4=ingresos[,4]*((48001 + 60000)/2)
+i5=ingresos[,5]*((60001+72000)/2)
+i6=ingresos[,6]*((72001+84000)/2)
+i7=ingresos[,7]*((84000+12000)/2)
+
+ingresos=(i1+i2+i3+i4+i5+i6+i7)
+head(ingresos)
+
+
+segundo_150_limpio$INGRESOS = ingresos
+
+rownames(segundo_150_limpio) <- segundo_150_limpio$ID
+primer_150_limpio$ID <- NULL
+
+segundo_150_limpio_sc <- scale(segundo_150_limpio)
+primer_150_limpio_sc
+
+Alojamiento_general1 = (segundo_150$VALORACION_ALOJ + 
+                         segundo_150$VALORACION_TRATO_ALOJ + 
+                         segundo_150$VALORACION_GASTRONO_ALOJ) /3
+Entorno_general1 = (segundo_150$VALORACION_CLIMA +
+                     segundo_150$VALORACION_ZONAS_BANYO + segundo_150$VALORACION_PAISAJES + 
+                     segundo_150$VALORACION_MEDIO_AMBIENTE + segundo_150$VALORACION_TRANQUILIDAD +
+                     segundo_150$VALORACION_LIMPIEZA) / 6
+Restaurante_general1 = (segundo_150$VALORACION_CALIDAD_RESTAUR + 
+                         segundo_150$VALORACION_OFERTA_GASTR_LOC + 
+                         segundo_150$VALORACION_TRATO_RESTAUR +
+                         segundo_150$VALORACION_PRECIO_RESTAUR) / 4
+
+str(Alojamiento_general)
+
+
+segundo_150_unido <- data.frame(segundo_150$IMPRESION, Alojamiento_general1, Restaurante_general1,Entorno_general1,
+                                ingresos, segundo_150$EDAD)
+segundo_150_sca <- scale(segundo_150_unido)
+#analisis de componentes principales necesita que estÃ© todo en una misma magnitud
+str(segundo_150_unido)
+
+
+library(factoextra)
+library(FactoMineR)
+library(dplyr)
+#Analizamos las estructuras de los dos datas
+str(primer_150)
+str(segundo_150)
+
+
+str(primer_150_unido)
+
+#Hacemos lo mismo para el segundo_150
+ingresos = dummy(primer_150$INGRESOS)
+
+i1=ingresos[,1]*((12000+24000)/2)
+i2=ingresos[,2]*((24000 + 36000)/2)
+i3=ingresos[,3]*((36001 +48000)/2)
+i4=ingresos[,4]*((48001 + 60000)/2)
+i5=ingresos[,5]*((60001+72000)/2)
+i6=ingresos[,6]*((72001+84000)/2)
+i7=ingresos[,7]*((84000+12000)/2)
+
+ingresos=(i1+i2+i3+i4+i5+i6+i7)
+head(ingresos)
+
+
+primer_150_limpio$INGRESOS = ingresos
+
+rownames(primer_150_limpio) <- primer_150_limpio$ID
+primer_150_limpio$ID <- NULL
+
+primer_150_limpio_sc <- scale(primer_150_limpio)
+primer_150_limpio_sc
+
+Alojamiento_general = (primer_150$VALORACION_ALOJ + 
+                         primer_150$VALORACION_TRATO_ALOJ + 
+                         primer_150$VALORACION_GASTRONO_ALOJ) /3
+Entorno_general = (primer_150$VALORACION_CLIMA +
+                     primer_150$VALORACION_ZONAS_BANYO + primer_150$VALORACION_PAISAJES + 
+                     primer_150$VALORACION_MEDIO_AMBIENTE + primer_150$VALORACION_TRANQUILIDAD +
+                     primer_150$VALORACION_LIMPIEZA) / 6
+Restaurante_general = (primer_150$VALORACION_CALIDAD_RESTAUR + 
+                         primer_150$VALORACION_OFERTA_GASTR_LOC + 
+                         primer_150$VALORACION_TRATO_RESTAUR +
+                         primer_150$VALORACION_PRECIO_RESTAUR) / 4
+
+str(Alojamiento_general)
+
+
+primer_150_unido <- data.frame(primer_150$IMPRESION, Alojamiento_general, Restaurante_general,Entorno_general,
+                                ingresos, primer_150$EDAD)
+primer_150_sca <- scale(primer_150_unido)
+#analisis de componentes principales necesita que estÃ© todo en una misma magnitud
+str(primer_150_unido)
+
+
+```
+
+
+
+```{r,include=T, echo=T}
+############## Inspeccion ##############
+library(gridExtra)
+graf.datos <-ggplot(as.data.frame(primer_150_limpio), aes(x=VALORACION_TRATO_ALOJ, y=VALORACION_ALOJ)) +
+  geom_point() +
+  geom_density_2d()
+# Generamos un conjunto aleatorio de datos para las dos variables
+set.seed(1234)
+n = nrow(primer_150_limpio)
+random_df = data.frame(
+  x = as.integer(runif(nrow(primer_150_limpio), min(primer_150_limpio$VALORACION_ALOJ), max(primer_150_limpio$VALORACION_ALOJ))),
+  y = as.integer(runif(nrow(primer_150_limpio), min(primer_150_limpio$VALORACION_TRATO_ALOJ), max(primer_150_limpio$VALORACION_TRATO_ALOJ))))
+# Colocamos en objeto para representación posterior
+graf.aleat=ggplot(random_df, aes(x, y)) + geom_point() + labs(x="ALOJAMIENTO",y="TRATO ALOJAMIENTO") + stat_density2d(aes(color = ..level..))
+grid.arrange(graf.datos , graf.aleat, nrow=1, ncol=2)
+
+```
+
+Este gráfico nos permite discernir si existe un fuerte agrupacimiento entre estas variables. Observamos que el gráfico está representado en la parte superior derecha,no ocupando todo el gráfico, eso significa una fuerte tendenia por agrupamiento y la conveniencia de realizar un análisis clúster.
+
+```{r}
+#Obtenemos las distancias del anterior DF a través de Pearson
+qdist.pearson <- get_dist(primer_150_unido, stand = T, method = 'pearson')
+qdist.manhattan <- get_dist(primer_150_limpio_sc, stand = T, method = 'manhattan')
+qdist.mink <- get_dist(primer_150_limpio_sc, stand = T, method = 'minkowski')
+str(qdist.pearson)
+summary(qdist.pearson)
+
+dist.cor <- as.dist(1 - correlaciondata_pca)
+round(as.matrix(dist.cor),  2)
+
+#Realizamos la representación gráfica.
+
+as.matrix(as.dist(qdist.pearson))
+```
+Para poder llevar a cabo los métodos de clustering necesitamos deﬁnir las similitudes que tienen las observaciones. Cuanto más se asemejen dos observaciones, más próximas estarán en cuanto a distancia y por tanto podrán pertenecer a un mismo grupo.
+
+El primer paso es el cálculo de la matriz de distancias por el método Pearson para establecer estas diferencias. Se realiza igualmente por el método Manhattan y Minkowsky
+
+```{r,include=TRUE, echo=TRUE}
+library(gridExtra)
+fviz_dist(qdist.mink, lab_size = 5)
+```
+
+Como se puede observar en el gráﬁco, para que la distribución fuera perfecta, la distribución por colores debería serlo igualmente. El gráﬁco nos impide ver con claridad las observaciones en los ejes X e Y pero esto no importa ya que lo que queríamos era la visión conjunta.
+
+
+Antes del análisis cluster debemos realizar el estadístico de Hopkings que es un contraste frente a la estructura aleatoria a través de una distribución uniforme del espacio de datos. La idea por tanto es contrastar una hipótesis de distribución uniforme de los datos frente a la alternativa
+
+```{r}
+set.seed(1234)
+clustend <- get_clust_tendency(primer_150_sca, nrow(primer_150_sca)-1)
+clustend$hopkins_stat
+```
+En nuestro caso un valor de 0.3265 nos indica que los datos pueden segmentarse y por tanto podemos realizar el análisis.
+
+Uno de los problemas más grandes a los que nos enfrentamos cuando realizamos este tipo de análisis es la decisión de cuantos clústeres usar
+
+Podemos visualizarlo a través de un Denfograma
+
+
+De manera gráfica podríamos ver cuantas agrupaciones serían las óptimas
+
+El número óptimo de clústeres según el K-medias es de dos
+
+
+```{r,include=TRUE, echo=TRUE}
+#Ahora vamos a realizar el cluster, KMEANS DE data frame sin agrupar
+viajeros.eclust <- eclust(primer_150_limpio, FUNcluster = 'kmeans', stand = T, hc_metric = 'euclidean',  nstart = 25)
+viajeros.eclust.j <- eclust(primer_150_sca, "kmeans", k = 2)
+fviz_silhouette(viajeros.eclust.j)
+fviz_silhouette(viajeros.eclust)
+
+```
+
+```{r,include=TRUE, echo=TRUE}
+
+fviz_nbclust(primer_150_sca, kmeans, method = "silhouette") +
+  ggtitle("Número óptimo de clusters - k medias") +
+  labs(x="Número k de clusters",y="Anchura del perfil promedio")
+```
+Haremos un gid.arrange para ver si existe solapamiento o no entre los clústeres. Todos existe una colisión en mayor o menos media. Sin embargo, no ocurre lo mismo con el cluster 2
+
+```{r,include=TRUE, echo=TRUE}
+k2 <- kmeans(primer_150_sca, centers = 2, nstart = 25)
+k3 <- kmeans(primer_150_sca, centers = 3, nstart = 25)
+k4 <- kmeans(primer_150_sca, centers = 4, nstart = 25)
+k5 <- kmeans(primer_150_sca, centers = 5, nstart = 25)
+k6 <- kmeans(primer_150_sca, centers = 6, nstart = 25)
+k7 <- kmeans(primer_150_sca, centers = 7, nstart = 25)
+k8 <- kmeans(primer_150_sca, centers = 8, nstart = 25)
+
+p1 <- fviz_cluster(k2, geom = 'point', data = primer_150_sca) + ggtitle('K = 2')
+p2 <- fviz_cluster(k3, geom = 'point', data = primer_150_sca) + ggtitle('K = 3')
+p3 <- fviz_cluster(k4, geom = 'point', data = primer_150_sca) + ggtitle('K = 4')
+p4 <- fviz_cluster(k5, geom = 'point', data = primer_150_sca) + ggtitle('K = 5')
+p5 <- fviz_cluster(k6, geom = 'point', data = primer_150_sca) + ggtitle('K = 6')
+p6 <- fviz_cluster(k7, geom = 'point', data = primer_150_sca) + ggtitle('K = 7')
+p7 <- fviz_cluster(k8, geom = 'point', data = primer_150_sca) + ggtitle('K = 8')
+
+library(gridExtra)
+require(ggrepel)
+grid.arrange(p1, p2, p3, p4, p5, nrow = 2)
+```
+Nos quedamos con dos clusteres en virtud de todo el análisis realizado previamente y obtenemos los centroides por cada grupo, teniendo en cuenta las variables objeto de nuestro análisis
+
+```{r}
+k2$centers
+
+```
+Lo podemos representar a través de un gráfico tridimensional, según el K-means
+
+```{r,include=TRUE, echo=TRUE}
+library(rgl)
+cl <- kmeans(primer_150_sca,2)
+factorKmeans <- as.factor(cl$cluster)
+pc <- princomp(primer_150_unido, cor=TRUE, scores=TRUE)
+plot3d(pc$scores, col= factorKmeans, main="k-means clusters")
+```
+
+Con el análisis K-MEANS la dimensión 1 explica el 34,9% de la varianza y la dimensión 2 el 19,7%, lo cual, tomado todo ello en su conjunto considero que quedá bastante bien representada la varianza total.
+
+
+A través de la silueta observo que el cluster 1 está perfectamente representado, sin embargo con el cluster 2 hay na parte pequeña de las observaciones que no quedarían bien representadas, pero elijo aún así dos clústeres cómo método de agrupamiento por la calidad de la representación de los datos y por la no existencia de solapamiento entre ellos.
+
+```{r}
+clust.2 <- eclust(primer_150_sca, FUNcluster = 'kmeans', stand = T, hc_metric = 'euclidean', k=2,  nstart = 25)
+fviz_cluster(clust.2)
+fviz_silhouette(clust.2)
+```
+
+PAM (medioides en lugar de centroides) sale peor, observamos que existe mayor solapamiento.
+
+A través del algoritmo PAM, muy similar al K-means, en cuanto a que ambos agrupan las observaciones en función del número de clusters, pero con el k-mediods, cada cluster está representado por una observación ( el mediode), mientras que con el K-means cada cluster está representado por su centroide. 
+
+```{r}
+clust.pam <- pam(primer_150_sca, stand = T, k = 2 ,metric = 'euclidean')
+fviz_cluster(clust.pam)
+```
+
+
+
+
+Con el CLARA, podemos hacer el cluster pero vemos que el solapamiento de los datos es inmensa, y encima es para un gran número de observaciones. Nosotros solamente trabajaremos con 150 observaciones como muestra, para los dos dataframes, por lo que este método de clusterización resultará ignorado.
+
+```{r,include=TRUE, echo=TRUE}
+## No podemos realizar CLARA por la cantidad de datos de los que disponemos
+require(cluster)
+viajeros_esp.clara=clara(primer_150_limpio, 2)
+require(factoextra)
+fviz_cluster(viajeros_esp.clara, stand = TRUE, geom = "point", pointsize = 1)
+```
+
+PREGUNTA NÚMERO 3
+
+Caracterizamos cada segmento en virtud de los siguientes atributos: nacionalidad (según PAIS_RESID_AGRUP), isla de mayor estancia, edad, sexo y nivel de ingresos
+
+
+```{r}
+primer_150_unido$Centroides <- k2$cluster
+
+primer_150_unido %>% 
+  group_by(Centroides) %>% 
+  dplyr::summarize(conteo = n(), media_ingresos = mean(ingresos),media_edad = mean(primer_150.EDAD),media_Alojamiento_general = mean(Alojamiento_general),
+                   media_Restaurante_general= mean(Restaurante_general),media_entorno = mean(Entorno_general))
+```
+
+Las conclusiones a las que llegamos son las siguientes:
+
+*En el cluster 1 tenemos una proporción un tanto superior de turistas que en el cluster 2, siendo la primera formada por 91 turistas frente al cluster 2 del cual tenemos 59 turistas.
+
+* La media de ingresos de los turistas es inferior al cluster 2
+
+* La satisfacción global de las variables 'Alojamiento_general', 'Restaurante_general' y 'medis_entorno' resulta superior en el cluster 1 que en el cluster 2. No obstante,para el cluster 2 el porcentaje de satisfacción ha sido también bueno, no obteniendo una calificación por debajo de 5 ninguna de las 3 variables conglomeradas.
+
+* La media edad del cluster 1 es superior pero no mucho en comparación del cluster 2
+
+
+```{r}
+Cluster <- k2$cluster
+primer_150_sca <- cbind(primer_150_sca, Cluster)
+primer_150_sca <- as.data.frame(primer_150_sca)
+
+table(primer_150$AEROPUERTO, primer_150_sca$Cluster)
+table(primer_150$SEXO, primer_150_sca$Cluster)
+table(primer_150$ESTANCIA_MAYOR_ISLA_G2, primer_150_sca$Cluster)
+table(primer_150$PAIS_RESID_AGRUP, primer_150_sca$Cluster)
+```
+
+*La isla de mayor estancia es Tenerife, siendo la mayor tanto para el cluster 1 como para el cluster 2, seguidamente de Gran Canaria, luego el resto de las Islas y finalmente Lanzarote, donde vemos que el turismo en esta última ha sido el más bajo comparándola con el resto de las Islas.
+
+*Han habido mayor número de hombres como turistas frente a las mujeres, tanto para el Cluster 1 como para el cluster 2.
+
+*El primer grupo de turistas que ha visitado las Islas Canarias ha sido a nivel nacional, en segundo lugar han sido ingleses, en tercer lugar han visitado las Islas otros países y finalmente alemanes.
+
+Tomando todo ello en su conjunto el cluster 1 representa aquellos turistas que van a las Islas Canarias y que regresan a sus países con un elevado índice de satisfacción, tienen un poder adquisitivo relativamente alto con unos ingresos medios de 37121 € y una edad mediade 42.
+
+
+#PREGUNTA 4 Compare las agrupaciones efectuadas en 2010-2014 y 2015-2017, y señale si ha habido modificaciones; puede apoyarse, para ello, en una “Comparación de dendrogramas”;
+
+El primer Dendograma representa los datos escalados para los años 2010-2014:
+
+- En primer lugar, he elegido como método de agrupación 2 clústeres por el análisis realizado previamente
+- Tanto en el primer agrupamiento (color verde) como en el segundo (color azul) los grupos están equilibrados
+
+```{r}
+d <- dist(primer_150_sca ,method = "euclidean") # distance matrix
+fit <- hclust(d, method="ward.D2")
+
+
+plot(fit, cex = 0.6, hang = -1, main="Dendrograma - hclust")
+rect.hclust(fit, k=2, border = 3:6)
+```
+El segundo Dendograma representa los datos escalados para los años 2015-1017
+
+-A diferencia del primer Dendograma, el primer agrupamiento resulta ser mucho más reducido que el segundo, siendo esté último el que mayor concentración y agrupación de turistas representa.
+
+```{r}
+d <- dist(segundo_150_sca ,method = "euclidean") # distance matrix
+fit <- hclust(d, method="ward.D2")
+
+
+plot(fit, cex = 0.6, hang = -1, main="Dendrograma - hclust")
+rect.hclust(fit, k=2, border = 3:6)
+```
+
+
+```{r}
+primer_150_unido$Centroides <- k2$cluster
+
+primer_150_unido %>% 
+  group_by(Centroides) %>% 
+  dplyr::summarize(conteo = n(), media_ingresos = mean(ingresos),media_edad = mean(primer_150.EDAD),media_Alojamiento_general = mean(Alojamiento_general),
+                   media_Restaurante_general= mean(Restaurante_general),media_entorno = mean(Entorno_general))
+```
+
+
+|           	|   	| media_ingresos 	| media_edad 	| media_Alojamiento_general 	| media_restaurante_general 	| media_entorno 	|
+|-----------	|---	|----------------	|------------	|---------------------------	|---------------------------	|---------------	|
+| Cluster1  	|   	| 37121.06       	| 42.19780   	| 8.626374                  	| 8.384615                  	| 8.761905      	|
+| Cluster 2 	|   	| 42915.49       	| 38.98305   	| 6.994350                  	| 6.601695                  	| 7.237288      	|
+
+
+
+
+```{r}
+segundo_150_unido$Centroides <- k2$cluster
+
+segundo_150_unido %>% 
+  group_by(Centroides) %>% 
+  dplyr::summarize(conteo = n(), media_ingresos = mean(ingresos),media_edad = mean(segundo_150.EDAD),media_Alojamiento_general = mean(Alojamiento_general1),
+                   media_Restaurante_general= mean(Restaurante_general1),media_entorno = mean(Entorno_general1))
+```
+
+
+|           	|   	| media_ingresos 	| media_edad 	| media_Alojamiento_general 	| media_restaurante_general 	| media_entorno 	|
+|-----------	|---	|----------------	|------------	|---------------------------	|---------------------------	|---------------	|
+| Cluster1  	|   	| 42263.93       	| 42.86813   	| 8.219780                  	| 7.991758                  	| 8.371795      	|
+| Cluster 2 	|   	| 40068.02       	| 39.72881   	| 7.949153                  	| 8.063559                  	| 8.254237      	|
+
+```{r}
+Cluster <- k2$cluster
+primer_150_sca <- cbind(primer_150_sca, Cluster)
+primer_150_sca <- as.data.frame(primer_150_sca)
+
+table(primer_150$AEROPUERTO, primer_150_sca$Cluster)
+table(primer_150$SEXO, primer_150_sca$Cluster)
+table(primer_150$ESTANCIA_MAYOR_ISLA_G2, primer_150_sca$Cluster)
+table(primer_150$PAIS_RESID_AGRUP, primer_150_sca$Cluster)
+```
+
+
+```{r}
+Cluster <- k2$cluster
+segundo_150_sca <- cbind(segundo_150_sca, Cluster)
+segundo_150_sca <- as.data.frame(segundo_150_sca)
+
+table(segundo_150$AEROPUERTO, segundo_150_sca$Cluster)
+table(segundo_150$SEXO, segundo_150_sca$Cluster)
+table(segundo_150$ESTANCIA_MAYOR_ISLA_G2, segundo_150_sca$Cluster)
+table(segundo_150$PAIS_RESID_AGRUP, segundo_150_sca$Cluster)
+```
+
+CONCLUSIONES FINALES COMPARANDO PARA EL INTERVALO DE AÑOS 2010:2014 y 2015:2017
+
+
+- La media de edad de los turistas ha aumentado, pero no de forma significativa en estos últimos años
+- La media de ingresos de los turistas ha aumentado en unos cuantos miles de euros para el segundo cluster y unos cuantos cientos de euros para el primero
+- La valoración global, tomando en cuenta el alojamiento, el restaurante y el entorno, ha sido mayor en estos últimos años, es decir, los turistas que vienen a las Islas Canarias, desde el intervalo 2015 a 2017, están mucho más contentos que desde 2010 a 2014.
+- La isla por excelencia ha sido Tenerife
+- Han habido más hombres que mujeres para ambas franjas temporales 
+-El turismo nacional ha sido inferior desde 2015, si lo comparamos desde 2010 a 2014
+- Ha aumentado el turismo a las Islas Canarias por parte de los turistas británicos en estos últimos años, sin embargo, ha descendido por parte de los turistas alemanes.
+
+
+
+Tomado todo ello en su conjunto y por las razones que hemos expuesto en este informe existen diferencias entre las valoraciones de distintos aspectos y las características de quienes lo hicieron.
+
+
+
+
+
+
+
+
+
+
